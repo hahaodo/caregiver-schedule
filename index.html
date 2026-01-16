@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>회복프로젝트 스케줄러</title>
+    <title>유춘자님 회복프로젝트</title>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -55,7 +55,8 @@
             useEffect(() => {
                 const data = localStorage.getItem('caregiver-final');
                 if (data) setSchedules(JSON.parse(data));
-            }, []);
+                document.title = title;
+            }, [title]);
 
             const save = () => {
                 localStorage.setItem('caregiver-final', JSON.stringify(schedules));
@@ -63,7 +64,6 @@
                 alert('저장되었습니다!');
             };
 
-            // 데이터 백업 (파일 다운로드)
             const exportData = () => {
                 const dataStr = JSON.stringify({ title, schedules });
                 const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
@@ -74,7 +74,6 @@
                 linkElement.click();
             };
 
-            // 데이터 복구 (파일 읽기)
             const importData = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -84,44 +83,48 @@
                         const imported = JSON.parse(e.target.result);
                         if (imported.schedules) {
                             setSchedules(imported.schedules);
-                            if (imported.title) {
-                                setTitle(imported.title);
-                                setTitleInput(imported.title);
-                            }
+                            if (imported.title) { setTitle(imported.title); setTitleInput(imported.title); }
                             alert('복구가 완료되었습니다. [저장] 버튼을 눌러 확정해 주세요.');
                         }
-                    } catch (err) {
-                        alert('올바른 백업 파일이 아닙니다.');
-                    }
+                    } catch (err) { alert('올바른 백업 파일이 아닙니다.'); }
                 };
                 reader.readAsText(file);
             };
 
             return (
-                <div className="max-w-screen-xl mx-auto p-2">
-                    <header className="sticky top-0 z-10 bg-white p-3 rounded-xl shadow-md mb-3">
+                <div className="max-w-screen-xl mx-auto p-2 text-gray-800">
+                    <header className="sticky top-0 z-10 bg-white p-3 rounded-xl shadow-md mb-3 border border-indigo-100">
+                        {/* 사용 설명 섹션 */}
+                        <div className="mb-3 p-2 bg-indigo-50 rounded-lg text-[10px] text-indigo-900 border border-indigo-100">
+                            <p className="font-bold mb-1">💡 사용 가이드</p>
+                            <ul className="list-disc ml-4 space-y-0.5">
+                                <li><strong>백업:</strong> '백업' 클릭 시 파일이 저장됩니다. 기기 변경 시 꼭 실행하세요.</li>
+                                <li><strong>복구:</strong> '복구' 클릭 후 백업된 파일을 선택하면 데이터가 불러와집니다.</li>
+                                <li><strong>기호:</strong> 한 칸에 2명은 '홍길동+김철수', 교대는 '홍길동-김철수'로 입력하세요.</li>
+                            </ul>
+                        </div>
+
                         <div className="flex flex-col gap-2 mb-3">
                             <div className="flex items-center gap-2">
-                                <input className="flex-1 font-bold text-lg border-b-2 border-indigo-200 outline-none" value={titleInput} onChange={e => setTitleInput(e.target.value)} />
-                                <button onClick={() => setTitle(titleInput)} className="bg-indigo-500 text-white px-3 py-1 rounded text-xs">제목변경</button>
+                                <input className="flex-1 font-bold text-lg border-b-2 border-indigo-200 outline-none focus:border-indigo-500" value={titleInput} onChange={e => setTitleInput(e.target.value)} />
+                                <button onClick={() => setTitle(titleInput)} className="bg-indigo-500 text-white px-3 py-1 rounded text-xs font-bold">제목변경</button>
                             </div>
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center px-1">
                                 <h1 className="text-sm font-bold text-indigo-700">{title}</h1>
                                 <div className="flex gap-1">
-                                    <button onClick={exportData} className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-200">백업</button>
-                                    <button onClick={() => fileInputRef.current.click()} className="px-2 py-1 bg-orange-50 text-orange-600 text-[10px] rounded border border-orange-200">복구</button>
+                                    <button onClick={exportData} className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] rounded font-bold border border-blue-200">백업</button>
+                                    <button onClick={() => fileInputRef.current.click()} className="px-2 py-1 bg-orange-100 text-orange-700 text-[10px] rounded font-bold border border-orange-200">복구</button>
                                     <input type="file" ref={fileInputRef} onChange={importData} accept=".json" className="hidden" />
-                                    <button onClick={() => setViewMode('all')} className={`px-2 py-1 text-[10px] rounded ${viewMode==='all'?'bg-indigo-600 text-white':'bg-gray-100'}`}>달력</button>
-                                    <button onClick={() => setViewMode('stats')} className={`px-2 py-1 text-[10px] rounded ${viewMode==='stats'?'bg-indigo-600 text-white':'bg-gray-100'}`}>통계</button>
-                                    <button onClick={save} className="px-2 py-1 bg-green-600 text-white text-[10px] rounded">저장</button>
+                                    <button onClick={() => setViewMode('all')} className={`px-2 py-1 text-[10px] rounded font-bold ${viewMode==='all'?'bg-indigo-600 text-white':'bg-gray-100'}`}>달력</button>
+                                    <button onClick={() => setViewMode('stats')} className={`px-2 py-1 text-[10px] rounded font-bold ${viewMode==='stats'?'bg-indigo-600 text-white':'bg-gray-100'}`}>통계</button>
+                                    <button onClick={save} className="px-2 py-1 bg-green-600 text-white text-[10px] rounded font-bold">저장</button>
                                 </div>
                             </div>
-                            <p className="text-[10px] text-gray-500 bg-yellow-50 p-1 rounded text-center">동시: 이름+이름 / 교대: 이름-이름</p>
                         </div>
                         {viewMode === 'all' && (
                             <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
                                 {tabs.map(t => (
-                                    <button key={t} onClick={() => setCurrentTab(t)} className={`flex-shrink-0 px-3 py-1 text-[10px] rounded-full border ${currentTab===t?'bg-indigo-600 text-white':'bg-white text-gray-500'}`}>{t}</button>
+                                    <button key={t} onClick={() => setCurrentTab(t)} className={`flex-shrink-0 px-3 py-1.5 text-[10px] rounded-full border ${currentTab===t?'bg-indigo-600 text-white font-bold':'bg-white text-gray-500'}`}>{t}</button>
                                 ))}
                             </div>
                         )}
@@ -134,7 +137,7 @@
                                     <div className="grid-container">
                                         <div className="bg-gray-100 text-[10px] font-bold flex items-center justify-center rounded">시간</div>
                                         {week.days.map((d, i) => (
-                                            <div key={i} className={`text-[10px] font-bold p-1 text-center ${i===0?'text-red-500':i===6?'text-blue-500':''}`}>{d.m}/{d.d}({d.yo})</div>
+                                            <div key={i} className={`text-[10px] font-bold p-1 text-center rounded ${i===0?'bg-red-50 text-red-500':i===6?'bg-blue-50 text-blue-500':'bg-gray-50'}`}>{d.m}/{d.d}({d.yo})</div>
                                         ))}
                                         {timeSlots.map(slot => (
                                             <React.Fragment key={slot.name}>
@@ -151,7 +154,7 @@
                             ))}
                         </div>
                     ) : (
-                        <div className="bg-white p-6 rounded-xl text-center text-sm text-gray-500">통계 화면</div>
+                        <div className="bg-white p-6 rounded-xl text-center text-sm text-gray-500 shadow-md">통계 데이터 로딩 중...</div>
                     )}
                 </div>
             );
