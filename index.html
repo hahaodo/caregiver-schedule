@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>유춘자님 회복프로젝트</title>
+    <title>유춘자님 회복프로젝트 (Cloud Sync)</title>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -13,21 +13,79 @@
         input { height: 26px !important; font-size: 11px !important; padding: 0 4px !important; }
         .grid-container { display: grid; gap: 2px; grid-template-columns: 75px repeat(7, minmax(0, 1fr)); min-width: 100%; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
+
+    <script type="module">
+        // Firebase SDK 임포트 (이미지 기반)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // 사용자가 제공한 이미지 속 설정값
+        const firebaseConfig = {
+            apiKey: "AIzaSyBIVgsDWX_ILTfGPyytMSGjbJ4m6dTPDPk",
+            authDomain: "polished-engine-329901.firebaseapp.com",
+            projectId: "polished-engine-329901",
+            storageBucket: "polished-engine-329901.firebasestorage.app",
+            messagingSenderId: "252419619050",
+            appId: "1:252419619050:web:7faa52c5ecd5c3d5aa7f93",
+            measurementId: "G-ELKR52JNJG"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.FB_DB = db; // React에서 접근하기 위해 윈도우 객체에 할당
+    </script>
+
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
+        
         const CaregiverScheduler = () => {
             const [schedules, setSchedules] = useState({});
-            const [viewMode, setViewMode] = useState('all');
-            const [title, setTitle] = useState(localStorage.getItem('pj-title') || '유춘자님 회복프로젝트');
-            const [titleInput, setTitleInput] = useState(title);
+            const [title, setTitle] = useState('유춘자님 회복프로젝트');
             const [currentTab, setCurrentTab] = useState('2026-Q1');
-            const fileInputRef = useRef(null);
+            const [loading, setLoading] = useState(true);
 
+            // Firebase에서 실시간 데이터 불러오기
+            useEffect(() => {
+                const db = window.FB_DB;
+                if (!db) return;
+
+                const docRef = doc(db, "caregiver", "scheduleData");
+                
+                // 데이터 변경 시 실시간 반영 (onSnapshot)
+                const unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        setSchedules(data.schedules || {});
+                        setTitle(data.title || '유춘자님 회복프로젝트');
+                    }
+                    setLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            // Firebase 서버에 저장
+            const saveToServer = async (targetSchedules = schedules, targetTitle = title) => {
+                try {
+                    const db = window.FB_DB;
+                    await setDoc(doc(db, "caregiver", "scheduleData"), {
+                        schedules: targetSchedules,
+                        title: targetTitle,
+                        lastUpdated: new Date().toISOString()
+                    });
+                    alert('서버에 안전하게 저장되었습니다!');
+                } catch (e) {
+                    console.error(e);
+                    alert('저장 실패: ' + e.message);
+                }
+            };
+
+            // 기존 시간 슬롯 설정
             const timeSlots = [
                 { name: '새벽 0-9(9)', hours: 9, color: 'bg-purple-50' }, 
                 { name: '오전 9-12(3)', hours: 3, color: 'bg-blue-50' },
@@ -38,7 +96,7 @@
             const allWeeks = useMemo(() => {
                 const weeks = [];
                 let curr = new Date('2025-12-28');
-                const end = new Date('2028-12-31');
+                const end = new Date('2026-12-31');
                 const dayLabels = ['일','월','화','수','목','금','토'];
                 while (curr <= end) {
                     const days = [];
@@ -47,161 +105,64 @@
                         curr.setDate(curr.getDate() + 1);
                     }
                     const q = Math.floor((days[0].m - 1) / 3) + 1;
-                    weeks.push({ label: `${days[0].m}/${days[0].d}~${days[6].m}/${days[6].d}`, tabKey: `${new Date(days[0].full).getFullYear()}-Q${q}`, days });
+                    weeks.push({ label: `${days[0].m}/${days[0].d}~${days[6].m}/${days[6].d}`, tabKey: `2026-Q${q}`, days });
                 }
                 return weeks;
             }, []);
 
-            const tabs = useMemo(() => [...new Set(allWeeks.map(w => w.tabKey))], [allWeeks]);
+            const tabs = [...new Set(allWeeks.map(w => w.tabKey))];
 
-            useEffect(() => {
-                const data = localStorage.getItem('caregiver-final');
-                if (data) {
-                    try { setSchedules(JSON.parse(data)); } catch(e) { console.error("Data load error", e); }
-                }
-                document.title = title;
-            }, [title]);
-
-            const save = (targetData = schedules, targetTitle = title) => {
-                localStorage.setItem('caregiver-final', JSON.stringify(targetData));
-                localStorage.setItem('pj-title', targetTitle);
-                alert('저장되었습니다!');
-            };
-
-            const exportData = () => {
-                const dataStr = JSON.stringify({ title, schedules });
-                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-                const link = document.createElement('a');
-                link.setAttribute('href', dataUri);
-                link.setAttribute('download', `caregiver_backup_${new Date().toISOString().slice(0,10)}.json`);
-                link.click();
-            };
-
-            const importData = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const imported = JSON.parse(e.target.result);
-                        if (imported && typeof imported.schedules === 'object') {
-                            setSchedules(imported.schedules);
-                            if (imported.title) {
-                                setTitle(imported.title);
-                                setTitleInput(imported.title);
-                            }
-                            // 복구 후 사용자 확인을 유도하거나 자동 저장
-                            alert('데이터를 성공적으로 읽어왔습니다. 반드시 [저장] 버튼을 눌러주세요.');
-                        } else {
-                            throw new Error("Invalid structure");
-                        }
-                    } catch (err) {
-                        alert('복구 실패: 올바른 백업 파일(.json)이 아닙니다.');
-                    } finally {
-                        event.target.value = ''; // 같은 파일 재선택 가능하도록 초기화
-                    }
-                };
-                reader.readAsText(file);
-            };
-
-            const calculateStats = () => {
-                const stats = {};
-                Object.entries(schedules).forEach(([slotName, days]) => {
-                    const hours = timeSlots.find(s => s.name === slotName)?.hours || 0;
-                    if (!days) return;
-                    Object.values(days).forEach(val => {
-                        if (!val || typeof val !== 'string') return;
-                        const names = val.split(/[+\-]/).map(n => n.trim()).filter(n => n);
-                        names.forEach(name => {
-                            stats[name] = (stats[name] || 0) + (hours / names.length);
-                        });
-                    });
-                });
-                return Object.entries(stats).sort((a, b) => b[1] - a[1]);
-            };
+            if (loading) return <div className="flex h-screen items-center justify-center font-bold text-indigo-600">서버에서 데이터를 불러오는 중...</div>;
 
             return (
                 <div className="max-w-screen-xl mx-auto p-2 text-gray-800">
                     <header className="sticky top-0 z-10 bg-white p-3 rounded-xl shadow-md mb-3 border border-indigo-100">
-                        <div className="mb-3 p-2 bg-indigo-50 rounded-lg text-[10px] text-indigo-900 border border-indigo-100">
-                            <p className="font-bold mb-1">💡 사용 가이드</p>
-                            <ul className="list-disc ml-4 space-y-0.5">
-                                <li><strong>백업:</strong> 현재 내용을 파일로 저장합니다. (기기 변경/데이터 보관용)</li>
-                                <li><strong>복구:</strong> 백업한 파일을 선택해 내용을 불러온 후 반드시 <b>[저장]</b>을 누르세요.</li>
-                                <li><strong>새벽/밤:</strong> 보라색 칸은 연결된 시간대입니다.</li>
-                            </ul>
+                        <div className="flex justify-between items-center mb-3">
+                            <h1 className="text-lg font-bold text-indigo-700">☁️ {title} (Cloud)</h1>
+                            <button onClick={() => saveToServer()} className="px-4 py-2 bg-indigo-600 text-white text-xs rounded-lg font-bold shadow-lg">전체 저장</button>
                         </div>
-
-                        <div className="flex flex-col gap-2 mb-3">
-                            <div className="flex items-center gap-2">
-                                <input className="flex-1 font-bold text-lg border-b-2 border-indigo-200 outline-none" value={titleInput} onChange={e => setTitleInput(e.target.value)} />
-                                <button onClick={() => setTitle(titleInput)} className="bg-indigo-500 text-white px-3 py-1 rounded text-xs font-bold">제목변경</button>
-                            </div>
-                            <div className="flex justify-between items-center px-1">
-                                <h1 className="text-sm font-bold text-indigo-700">{title}</h1>
-                                <div className="flex gap-1">
-                                    <button onClick={exportData} className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] rounded font-bold border border-blue-200">백업</button>
-                                    <button onClick={() => fileInputRef.current.click()} className="px-2 py-1 bg-orange-100 text-orange-700 text-[10px] rounded font-bold border border-orange-200">복구</button>
-                                    <input type="file" ref={fileInputRef} onChange={importData} accept=".json" className="hidden" />
-                                    <button onClick={() => setViewMode('all')} className={`px-2 py-1 text-[10px] rounded font-bold ${viewMode==='all'?'bg-indigo-600 text-white':'bg-gray-100'}`}>달력</button>
-                                    <button onClick={() => setViewMode('stats')} className={`px-2 py-1 text-[10px] rounded font-bold ${viewMode==='stats'?'bg-indigo-600 text-white':'bg-gray-100'}`}>통계</button>
-                                    <button onClick={() => save()} className="px-2 py-1 bg-green-600 text-white text-[10px] rounded font-bold">저장</button>
-                                </div>
-                            </div>
-                        </div>
-                        {viewMode === 'all' && (
-                            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
-                                {tabs.map(t => (
-                                    <button key={t} onClick={() => setCurrentTab(t)} className={`flex-shrink-0 px-3 py-1.5 text-[10px] rounded-full border ${currentTab===t?'bg-indigo-600 text-white font-bold':'bg-white text-gray-500'}`}>{t}</button>
-                                ))}
-                            </div>
-                        )}
-                    </header>
-
-                    {viewMode === 'all' ? (
-                        <div className="space-y-4">
-                            {allWeeks.filter(w => w.tabKey === currentTab).map((week, idx) => (
-                                <div key={idx} className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-                                    <div className="grid-container">
-                                        <div className="bg-gray-100 text-[10px] font-bold flex items-center justify-center rounded text-gray-500">시간</div>
-                                        {week.days.map((d, i) => (
-                                            <div key={i} className={`text-[10px] font-bold p-1 text-center rounded ${i===0?'bg-red-50 text-red-500':i===6?'bg-blue-50 text-blue-500':'bg-gray-50 text-gray-600'}`}>{d.m}/{d.d}({d.yo})</div>
-                                        ))}
-                                        {timeSlots.map(slot => (
-                                            <React.Fragment key={slot.name}>
-                                                <div className={`text-[9px] ${slot.color} flex items-center justify-center border border-gray-100 rounded text-center leading-tight p-1 font-medium text-gray-700`}>{slot.name}</div>
-                                                {week.days.map((day, i) => (
-                                                    <input key={i} autoComplete="off" value={schedules[slot.name]?.[day.full] || ''} 
-                                                        onChange={e => setSchedules(prev => ({...prev, [slot.name]: {...prev[slot.name], [day.full]: e.target.value}}))}
-                                                        onKeyDown={e => e.key === 'Enter' && save()} className={`border border-gray-100 rounded text-center outline-none focus:ring-1 focus:ring-indigo-300 ${slot.color}`} />
-                                                ))}
-                                            </React.Fragment>
-                                        ))}
-                                    </div>
-                                </div>
+                        <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
+                            {tabs.map(t => (
+                                <button key={t} onClick={() => setCurrentTab(t)} className={`flex-shrink-0 px-3 py-1.5 text-[10px] rounded-full border ${currentTab===t?'bg-indigo-600 text-white font-bold':'bg-white text-gray-500'}`}>{t}</button>
                             ))}
                         </div>
-                    ) : (
-                        <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
-                            <h2 className="text-sm font-bold mb-4 text-center text-indigo-800 border-b pb-2">간병 시간 합계 (누적)</h2>
-                            <div className="space-y-2">
-                                {calculateStats().length > 0 ? (
-                                    calculateStats().map(([name, hours]) => (
-                                        <div key={name} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                            <span className="font-bold text-sm">{name}</span>
-                                            <span className="text-indigo-600 font-bold text-sm">{hours.toFixed(1)} 시간</span>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-center text-gray-400 py-4 text-xs">데이터가 없습니다.</p>
-                                )}
+                    </header>
+
+                    <div className="space-y-4">
+                        {allWeeks.filter(w => w.tabKey === currentTab).map((week, idx) => (
+                            <div key={idx} className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
+                                <div className="grid-container">
+                                    <div className="bg-gray-100 text-[10px] font-bold flex items-center justify-center rounded text-gray-500">시간</div>
+                                    {week.days.map((d, i) => (
+                                        <div key={i} className={`text-[10px] font-bold p-1 text-center rounded ${i===0?'bg-red-50 text-red-500':i===6?'bg-blue-50 text-blue-500':'bg-gray-50 text-gray-600'}`}>{d.m}/{d.d}</div>
+                                    ))}
+                                    {timeSlots.map(slot => (
+                                        <React.Fragment key={slot.name}>
+                                            <div className={`text-[9px] ${slot.color} flex items-center justify-center border border-gray-100 rounded text-center leading-tight p-1 font-medium`}>{slot.name}</div>
+                                            {week.days.map((day, i) => (
+                                                <input key={i} autoComplete="off" 
+                                                    value={schedules[slot.name]?.[day.full] || ''} 
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setSchedules(prev => ({
+                                                            ...prev, 
+                                                            [slot.name]: {...prev[slot.name], [day.full]: val}
+                                                        }));
+                                                    }}
+                                                    className={`border border-gray-100 rounded text-center outline-none focus:ring-1 focus:ring-indigo-300 ${slot.color}`} />
+                                            ))}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             );
         };
-        ReactDOM.render(<CaregiverScheduler />, document.getElementById('root'));
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CaregiverScheduler />);
     </script>
 </body>
 </html>
